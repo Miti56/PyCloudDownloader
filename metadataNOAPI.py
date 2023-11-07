@@ -3,6 +3,13 @@ import json
 from bs4 import BeautifulSoup
 import os
 import subprocess
+import requests
+import json
+from bs4 import BeautifulSoup
+import os
+import subprocess
+from mutagen.id3 import ID3, TPE1, TIT2, APIC
+import shutil
 
 # Function to extract and format the artist name
 def format_artist_name(title):
@@ -88,15 +95,72 @@ def download_artwork(url, output_folder="artwork"):
     except requests.exceptions.RequestException as e:
         print(f"Error: {e}")
 
-def download_soundcloud_audio(soundcloud_url):
 
+def download_soundcloud_audio(soundcloud_url):
     try:
-        cookies = "2-294401-177040666-Heo0hHuZCIcnar"
-        command = ["youtube-dl","--no-check-certificate" ,"-x", "--audio-format", "mp3", soundcloud_url, "--cookies", cookies]
+        cookie_string = "2-294401-177040666-Heo0hHuZCIcnar"
+        command = ["youtube-dl", "--no-check-certificate", "-x", "--audio-format", "mp3", soundcloud_url, "--cookies",
+                   cookie_string]
         subprocess.run(command, check=True)
         print("Audio downloaded successfully.")
+
+        # Fetch the specific .mp3 file
+        mp3_file_to_edit = fetch_specific_mp3_file()
+
+        if mp3_file_to_edit:
+            # Open the .mp3 file and add metadata and album cover
+            audio = ID3(mp3_file_to_edit)
+            artist, song_name = extract_metadata_from_json()
+            audio.add(TPE1(encoding=3, text=artist))
+            audio.add(TIT2(encoding=3, text=song_name))
+
+            # Open and embed album cover
+            artwork_filename = "artwork/artwork.jpg"
+            if os.path.exists(artwork_filename):
+                with open(artwork_filename, "rb") as img_file:
+                    audio.add(APIC(encoding=3, mime="image/jpeg", type=3, desc="Cover", data=img_file.read()))
+                    audio.save(mp3_file_to_edit)
+
+
     except subprocess.CalledProcessError as e:
         print(f"Error: {e}")
+
+
+# Function to fetch the specific .mp3 file
+def fetch_specific_mp3_file():
+    files = os.listdir(os.getcwd())
+    mp3_files = [file for file in files if file.endswith(".mp3")]
+
+    if mp3_files:
+        for mp3_file in mp3_files:
+            mp3_file_path = os.path.join(os.getcwd(), mp3_file)
+            try:
+                # Try to open the file in read mode to check its validity
+                audio = ID3(mp3_file_path)
+                return mp3_file
+            except Exception as e:
+                # The file couldn't be opened in read mode, try to create a new valid ID3 tag
+                try:
+                    new_audio = ID3()
+                    new_audio.save(mp3_file_path)
+                    # Reopen in read-write mode for further operations
+                    audio = ID3(mp3_file_path)
+                    return mp3_file
+                except Exception as e:
+                    print(f"'{mp3_file}' could not be processed due to the error: {e}")
+
+    print("No .mp3 files found to edit.")
+    return None
+
+
+# Function to check if a file is a valid MP3 file
+def is_valid_mp3(file_path):
+    try:
+        audio = ID3(file_path)
+        return True
+    except Exception as e:
+        print(f"'{file_path}' is not a valid MP3 file. Error: {e}")
+        return False
 
 if __name__ == "__main__":
     soundcloud_url = input("Enter the SoundCloud URL: ")
@@ -106,7 +170,6 @@ if __name__ == "__main__":
     artist, song_name = extract_metadata_from_json()
     print(f"Artist: {artist}")
     print(f"Song Name: {song_name}")
-
 
     # Extract the artwork URL from the JSON content
     with open("soundcloud_html.json", "r", encoding="utf-8") as json_file:
