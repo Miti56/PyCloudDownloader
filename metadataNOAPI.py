@@ -15,7 +15,6 @@ import time
 # coming from your soundcloud session.
 cookie_string = "YOUR COOKIE"
 
-
 # Function to extract and format the artist name
 def format_artist_name(title):
     # Split the title at the "by" keyword and remove extra text
