@@ -10,6 +10,11 @@ import os
 import subprocess
 from mutagen.id3 import ID3, TPE1, TIT2, APIC
 import shutil
+import time
+
+# coming from your soundcloud session.
+cookie_string = "YOUR COOKIE"
+
 
 # Function to extract and format the artist name
 def format_artist_name(title):
@@ -98,7 +103,6 @@ def download_artwork(url, output_folder="artwork"):
 
 def download_soundcloud_audio(soundcloud_url):
     try:
-        cookie_string = "2-294401-177040666-Heo0hHuZCIcnar"
         command = ["youtube-dl", "--no-check-certificate", "-x", "--audio-format", "mp3", soundcloud_url, "--cookies",
                    cookie_string]
         subprocess.run(command, check=True)
@@ -108,22 +112,31 @@ def download_soundcloud_audio(soundcloud_url):
         mp3_file_to_edit = fetch_specific_mp3_file()
 
         if mp3_file_to_edit:
-            # Open the .mp3 file and add metadata and album cover
-            audio = ID3(mp3_file_to_edit)
-            artist, song_name = extract_metadata_from_json()
-            audio.add(TPE1(encoding=3, text=artist))
-            audio.add(TIT2(encoding=3, text=song_name))
+            # Add a delay to ensure the audio file is ready
+            time.sleep(5)
+
+            print("Embedding metadata and album cover...")
 
             # Open and embed album cover
             artwork_filename = "artwork/artwork.jpg"
             if os.path.exists(artwork_filename):
+                audio = ID3(mp3_file_to_edit)
+                artist, song_name = extract_metadata_from_json()
+                print(f"Embedding Artist: {artist}")
+                print(f"Embedding Song Name: {song_name}")
+                audio.add(TPE1(encoding=3, text=artist))
+                audio.add(TIT2(encoding=3, text=song_name))
+
                 with open(artwork_filename, "rb") as img_file:
                     audio.add(APIC(encoding=3, mime="image/jpeg", type=3, desc="Cover", data=img_file.read()))
-                    audio.save(mp3_file_to_edit)
+                audio.save(mp3_file_to_edit)
 
+                print("Metadata and album cover embedded.")
 
     except subprocess.CalledProcessError as e:
-        print(f"Error: {e}")
+        print(f"Error during audio download: {e}")
+    except Exception as e:
+        print(f"Error during metadata embedding: {e}")
 
 
 # Function to fetch the specific .mp3 file
@@ -162,14 +175,29 @@ def is_valid_mp3(file_path):
         print(f"'{file_path}' is not a valid MP3 file. Error: {e}")
         return False
 
+# Function to remove unnecessary files created during runtime
+def cleanup():
+    try:
+        # List of files to remove
+        files_to_remove = ["soundcloud_html.json", "cookie", cookie_string, "artwork"]
+
+        for file_name in files_to_remove:
+            if os.path.exists(file_name):
+                if os.path.isfile(file_name):
+                    os.remove(file_name)
+                elif os.path.isdir(file_name):
+                    shutil.rmtree(file_name)
+
+        print("Cleanup completed.")
+    except Exception as e:
+        print(f"Cleanup failed: {e}")
+
+
 if __name__ == "__main__":
     soundcloud_url = input("Enter the SoundCloud URL: ")
-    download_soundcloud_audio(soundcloud_url)
-    save_html_to_json(soundcloud_url)
 
-    artist, song_name = extract_metadata_from_json()
-    print(f"Artist: {artist}")
-    print(f"Song Name: {song_name}")
+    # Save the HTML content to JSON first
+    save_html_to_json(soundcloud_url)
 
     # Extract the artwork URL from the JSON content
     with open("soundcloud_html.json", "r", encoding="utf-8") as json_file:
@@ -185,3 +213,16 @@ if __name__ == "__main__":
 
     if artwork_url:
         download_artwork(artwork_url)
+
+    # Extract metadata from JSON
+    artist, song_name = extract_metadata_from_json()
+    print(f"Artist: {artist}")
+    print(f"Song Name: {song_name}")
+
+
+    # Download audio after extracting metadata
+    download_soundcloud_audio(soundcloud_url)
+
+    cleanup()
+
+
