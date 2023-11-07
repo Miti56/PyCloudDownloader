@@ -2,6 +2,7 @@ import requests
 import json
 from bs4 import BeautifulSoup
 import os
+import subprocess
 
 # Function to extract and format the artist name
 def format_artist_name(title):
@@ -57,6 +58,14 @@ def extract_metadata_from_json():
             artist = format_artist_name(title)
             song_name = format_song_name(title)
 
+            # # Extract the publication date
+            # date_tag = soup.find('time', {"pubdate": True})
+            # if date_tag:
+            #     publication_date = date_tag['pubdate']
+            #     print(publication_date)
+            # else:
+            #     publication_date = "Unknown"
+
             return artist, song_name
 
 # Function to download the artwork
@@ -79,13 +88,25 @@ def download_artwork(url, output_folder="artwork"):
     except requests.exceptions.RequestException as e:
         print(f"Error: {e}")
 
+def download_soundcloud_audio(soundcloud_url):
+
+    try:
+        cookies = "2-294401-177040666-Heo0hHuZCIcnar"
+        command = ["youtube-dl","--no-check-certificate" ,"-x", "--audio-format", "mp3", soundcloud_url, "--cookies", cookies]
+        subprocess.run(command, check=True)
+        print("Audio downloaded successfully.")
+    except subprocess.CalledProcessError as e:
+        print(f"Error: {e}")
+
 if __name__ == "__main__":
     soundcloud_url = input("Enter the SoundCloud URL: ")
+    download_soundcloud_audio(soundcloud_url)
     save_html_to_json(soundcloud_url)
 
     artist, song_name = extract_metadata_from_json()
     print(f"Artist: {artist}")
     print(f"Song Name: {song_name}")
+
 
     # Extract the artwork URL from the JSON content
     with open("soundcloud_html.json", "r", encoding="utf-8") as json_file:
